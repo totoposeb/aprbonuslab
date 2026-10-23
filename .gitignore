@@ -11,11 +11,11 @@
 renv/library/
 renv/local/
 renv/cellar/
-renv/lock/
-renv/python/
 renv/staging/
+renv/python/
 
 # Sistema
 .DS_Store
 .vscode/
+.Rproj.user
 inst/doc

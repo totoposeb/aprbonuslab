@@ -7,6 +7,6 @@
 # * https://testthat.r-lib.org/articles/special-files.html
 
 library(testthat)
-library(aprlab04)
+library(aprbonuslab)
 
-test_check("aprlab04")
+test_check("aprbonuslab")
