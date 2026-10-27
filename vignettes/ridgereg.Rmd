@@ -1,0 +1,31 @@
+---
+title: "ridgereg"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{ridgereg}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(aprbonuslab)
+```
+
+## Splitting the data into training and test sets
+
+## Linear regression and forward selection
+
+## Performance on the training set
+
+## Ridge regression with ridgereg()
+
+## Choosing lambda with 10-fold cross-validation
+
+## Performance on the test set and conclusions
