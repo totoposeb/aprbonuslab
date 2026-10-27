@@ -39,7 +39,9 @@ We use `caret::createDataPartition` to split the data into 80% training and 20% 
 
 ```{r}
 set.seed(001)
-train_index <- caret::createDataPartition(BostonHousing$medv, p = 0.8, list = FALSE)
+train_index <- caret::createDataPartition(
+  BostonHousing$medv, p = 0.8, list = FALSE
+)
 train_data <- BostonHousing[train_index, ]
 test_data  <- BostonHousing[-train_index, ]
 
@@ -52,40 +54,45 @@ cat("Test set size:", nrow(test_data), "\n")
 We fit two baseline models on the training set:
 
 1. A linear regression model.
-
 2. A linear regression model with forward selection of covariates on the training dataset.
 
 ```{r}
-
 # 1. Generate fixed 10-fold cross-validation indices
-# (Ensures all models are evaluated on the exact same folds for a fair comparison)
-set.seed(001) 
+# (Ensures all models are evaluated on the exact same folds for a fair
+# comparison)
+set.seed(001)
 folds <- caret::createFolds(train_data$medv, k = 10, returnTrain = TRUE)
 
-# 2. Pass the predefined folds into trainControl 
+# 2. Pass the predefined folds into trainControl
 ctrl <- caret::trainControl(method = "cv", index = folds)
 
 # 3. Fit a full linear regression model (using all covariates)
-lm_full <- caret::train(medv ~ ., data = train_data, method = "lm", trControl = ctrl)
+lm_full <- caret::train(
+  medv ~ .,
+  data = train_data,
+  method = "lm",
+  trControl = ctrl
+)
 
 # 4. Fit a linear regression model with forward selection of covariates
-# To satisfy Hint (iii), we define a grid to test nvmax from 1 up to all 13 covariates.
+# To satisfy Hint (ii), we define a grid to test nvmax from 1 up to all 13
+# covariates.
 n_covariates <- ncol(train_data) - 1
 lf_grid <- data.frame(nvmax = 1:n_covariates)
 
 lm_forward <- caret::train(
-  medv ~ ., 
-  data = train_data, 
-  method = "leapForward", 
-  trControl = ctrl,        
+  medv ~ .,
+  data = train_data,
+  method = "leapForward",
+  trControl = ctrl,
   tuneGrid = lf_grid
 )
 
 # 5. Verify that forward selection evaluated models from 1 to n covariates.
-cat("\n--- Forward Selection: Evaluated R-squared for each subset size ---\n")
-# Extract the summary object and print R-squared values to confirm all subset sizes were tested.
-sum_forward <- summary(lm_forward$finalModel)
-print(sum_forward$rsq)
+cat("\n--- Forward Selection: CV RMSE for each subset size ---\n")
+# Print the cross-validated RMSE of each subset size to confirm all of them
+# were tested.
+print(lm_forward$results[, c("nvmax", "RMSE")])
 ```
 
 `leapForward` can't fit a model with 0 covariates (`nvmax = 0`), so we compute the cross-validated RMSE of the intercept-only model by hand, on the same folds, and compare it with the best forward selection model.
@@ -104,7 +111,6 @@ cat("CV RMSE (Best forward selection):", min(lm_forward$results$RMSE), "\n")
 
 Let's calculate the Root Mean Squared Error (RMSE) on the training set for the two baseline models.
 
-
 ```{r}
 pred_lm_full <- predict(lm_full, newdata = train_data)
 pred_lm_forward <- predict(lm_forward, newdata = train_data)
@@ -118,7 +124,7 @@ cat("Training RMSE (Forward Selection):", rmse_train_forward, "\n")
 
 ## Ridge regression with ridgereg()
 
-Now, we integrate our custom ridgereg RC object into the caret framework by defining a custom model list. This allows caret to use our function for training and tuning.
+Now, we integrate our custom `ridgereg` RC object into the caret framework by defining a custom model list. This allows caret to use our function for training and tuning.
 
 ```{r}
 ridge_model <- list(
@@ -126,13 +132,15 @@ ridge_model <- list(
   library = NULL,
   type = "Regression",
   loop = NULL,
-  parameters = data.frame(parameter = "lambda", class = "numeric", label = "Lambda"),
-  
+  parameters = data.frame(
+    parameter = "lambda", class = "numeric", label = "Lambda"
+  ),
+
   # Define the grid of lambda values to test during cross-validation
   grid = function(x, y, len = NULL, search = "grid") {
     data.frame(lambda = c(0.001, 0.01, 0.1, 1, 10, 100))
   },
-  
+
   # Fit the model using our custom RC object
   fit = function(x, y, wts, param, lev, last, classProbs, ...) {
     # Convert x to a data.frame as required by model.frame
@@ -140,29 +148,35 @@ ridge_model <- list(
     dat$.outcome <- y
     ridgereg$new(.outcome ~ ., data = dat, lambda = param$lambda)
   },
-  
+
   # Define the prediction function for caret
   predict = function(modelFit, newdata, submodels = NULL) {
     # Convert newdata (usually a matrix from caret) back to a data.frame
     newdata_df <- as.data.frame(newdata)
     modelFit$predict(newdata = newdata_df)
   },
-  
+
   # Set to NULL as this is a regression model (no probability prediction needed)
   prob = NULL,
-  
+
   # Set to NULL as no custom sorting is required
   sort = NULL
 )
 ```
+
 ## Choosing lambda with 10-fold cross-validation
 
-We use caret::train with our custom ridge model and 10-fold cross-validation to find the optimal lambda.
+We use `caret::train` with our custom ridge model and 10-fold cross-validation to find the optimal lambda.
 
 ```{r}
 # Reuses `ctrl`, so ridge is evaluated on the same folds as the linear models
 set.seed(001)
-ridge_cv <- caret::train(medv ~ ., data = train_data, method = ridge_model, trControl = ctrl)
+ridge_cv <- caret::train(
+  medv ~ .,
+  data = train_data,
+  method = ridge_model,
+  trControl = ctrl
+)
 
 print(ridge_cv)
 
@@ -170,7 +184,7 @@ best_lambda <- ridge_cv$bestTune$lambda
 cat("Best lambda:", best_lambda, "\n")
 ```
 
-## Performance on the test set and conclusions
+## Performance on the test set
 
 Finally, we evaluate all three models on the completely unseen test set.
 
@@ -191,9 +205,6 @@ cat("Test RMSE (Ridge Regression):", rmse_test_ridge, "\n")
 ## To sum up
 
 - Forward selection kept all `r lm_forward$bestTune$nvmax` covariates, so it gives the same model as the full linear regression.
-
 - All three models do about equally well on the test set. Ridge regression with lambda = `r best_lambda` is only a little bit better.
-
 - All models do much better than the intercept-only model (CV RMSE of `r round(mean(rmse_intercept), 2)` against about `r round(min(lm_forward$results$RMSE), 2)`), so the covariates are useful for predicting `medv`.
-
 - The test RMSE is a bit higher than the training RMSE, which is normal for data the models have not seen before.
