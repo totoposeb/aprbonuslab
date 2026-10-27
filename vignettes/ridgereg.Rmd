@@ -26,7 +26,7 @@ This package includes an implementation of a ridge regression algorithm `ridgere
 
 For this demonstration, the `BostonHousing` dataset from the `mlbench` package will be used. From its own documentation in R:
 
-> The Boston Housing Data contains 506 observations on 14 variables, including the median value of owner-occupied homes (`medv`) and 13 predictors such as per capita crime rate, average number of rooms per dwelling (`rm`), and pupil-teacher ratio (`ptratio`).
+> Housing data for 506 census tracts of Boston from the 1970 census. [...] The original data are 506 observations on 14 variables, `medv` being the target variable.
 
 ```{r}
 data("BostonHousing", package = "mlbench")
@@ -50,7 +50,9 @@ cat("Test set size:", nrow(test_data), "\n")
 ## Linear regression and forward selection
 
 We fit two baseline models on the training set:
+
 1. A linear regression model.
+
 2. A linear regression model with forward selection of covariates on the training dataset.
 
 ```{r}
@@ -86,6 +88,18 @@ sum_forward <- summary(lm_forward$finalModel)
 print(sum_forward$rsq)
 ```
 
+`leapForward` can't fit a model with 0 covariates (`nvmax = 0`), so we compute the cross-validated RMSE of the intercept-only model by hand, on the same folds, and compare it with the best forward selection model.
+
+```{r}
+# The intercept-only model predicts the mean of medv in the training folds
+rmse_intercept <- sapply(folds, function(idx) {
+  sqrt(mean((train_data$medv[-idx] - mean(train_data$medv[idx]))^2))
+})
+
+cat("CV RMSE (Intercept only):", mean(rmse_intercept), "\n")
+cat("CV RMSE (Best forward selection):", min(lm_forward$results$RMSE), "\n")
+```
+
 ## Performance on the training set
 
 Let's calculate the Root Mean Squared Error (RMSE) on the training set for the two baseline models.
@@ -101,6 +115,7 @@ rmse_train_forward <- sqrt(mean((train_data$medv - pred_lm_forward)^2))
 cat("Training RMSE (Full Linear):", rmse_train_full, "\n")
 cat("Training RMSE (Forward Selection):", rmse_train_forward, "\n")
 ```
+
 ## Ridge regression with ridgereg()
 
 Now, we integrate our custom ridgereg RC object into the caret framework by defining a custom model list. This allows caret to use our function for training and tuning.
@@ -145,17 +160,18 @@ ridge_model <- list(
 We use caret::train with our custom ridge model and 10-fold cross-validation to find the optimal lambda.
 
 ```{r}
-ctrl <- trainControl(method = "cv", number = 10)
-
+# Reuses `ctrl`, so ridge is evaluated on the same folds as the linear models
 set.seed(001)
-ridge_cv <- train(medv ~ ., data = train_data, method = ridge_model, trControl = ctrl)
+ridge_cv <- caret::train(medv ~ ., data = train_data, method = ridge_model, trControl = ctrl)
 
 print(ridge_cv)
 
 best_lambda <- ridge_cv$bestTune$lambda
 cat("Best lambda:", best_lambda, "\n")
 ```
+
 ## Performance on the test set and conclusions
+
 Finally, we evaluate all three models on the completely unseen test set.
 
 ```{r}
@@ -171,3 +187,13 @@ cat("Test RMSE (Full Linear):", rmse_test_full, "\n")
 cat("Test RMSE (Forward Selection):", rmse_test_forward, "\n")
 cat("Test RMSE (Ridge Regression):", rmse_test_ridge, "\n")
 ```
+
+## To sum up
+
+- Forward selection kept all `r lm_forward$bestTune$nvmax` covariates, so it gives the same model as the full linear regression.
+
+- All three models do about equally well on the test set. Ridge regression with lambda = `r best_lambda` is only a little bit better.
+
+- All models do much better than the intercept-only model (CV RMSE of `r round(mean(rmse_intercept), 2)` against about `r round(min(lm_forward$results$RMSE), 2)`), so the covariates are useful for predicting `medv`.
+
+- The test RMSE is a bit higher than the training RMSE, which is normal for data the models have not seen before.
